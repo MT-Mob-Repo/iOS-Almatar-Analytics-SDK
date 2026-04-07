@@ -1,0 +1,66 @@
+name: Auto Increment Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Fetch all tags
+        run: git fetch --tags --force
+
+      - name: Determine next version
+        id: version
+        shell: bash
+        run: |
+          # Get latest tag (if none, start from 1.0.0)
+          latest_tag=$(git tag --sort=-v:refname | head -n 1)
+          if [[ -z "$latest_tag" ]]; then
+            latest_tag="1.0.0"
+          fi
+
+          echo "Latest tag: $latest_tag"
+
+          # Extract major, minor, patch with safe defaulting
+          IFS='.' read -r major minor patch <<<"${latest_tag//[!0-9.]/}"
+          major=${major:-1}
+          minor=${minor:-0}
+          patch=${patch:-0}
+
+          # Increment patch version
+          new_patch=$((patch + 1))
+          new_tag="${major}.${minor}.${new_patch}"
+
+          echo "New tag will be: $new_tag"
+          echo "tag=$new_tag" >> $GITHUB_OUTPUT
+
+      - name: Create and push new tag
+        run: |
+          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.version.outputs.tag }} already exists. Skipping..."
+          else
+            git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
+            git push https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/${{ github.repository }}.git "${{ steps.version.outputs.tag }}"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Release ${{ steps.version.outputs.tag }}"
+          body: "Automated release created from the main branch."

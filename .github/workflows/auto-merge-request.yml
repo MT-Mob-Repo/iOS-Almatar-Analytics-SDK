@@ -1,0 +1,33 @@
+
+name: Create Merge Request on Development Change
+
+on:
+  push:
+    branches:
+      - development
+      
+permissions:
+  contents: read
+
+jobs:
+  create-merge-request:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+
+      - name: Create Pull Request to main
+        uses: repo-sync/pull-request@v2
+        with:
+          source_branch: development
+          destination_branch: main
+          pr_title: 'Automated Merge: development -> main'
+          pr_body: |
+            This pull request was automatically created by a GitHub Action
+            after changes were pushed to the development branch.
+          github_token: ${{ secrets.GITHUB_TOKEN }}

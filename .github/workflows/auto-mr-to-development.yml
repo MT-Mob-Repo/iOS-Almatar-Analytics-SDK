@@ -1,0 +1,44 @@
+# When code is pushed to any branch (except main and development), automatically
+# open a merge request (pull request) to the development branch.
+# Pushes to main or development do nothing.
+
+name: Auto Create MR to Development
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - development
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  create-mr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create or open Pull Request to development
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_BRANCH: ${{ github.ref_name }}
+        run: |
+          if [ "$HEAD_BRANCH" = "main" ] || [ "$HEAD_BRANCH" = "development" ]; then
+            echo "Skipping: no PR to development for branch $HEAD_BRANCH."
+            exit 0
+          fi
+          pr_number=$(gh pr list --base development --head "$HEAD_BRANCH" --json number -q '.[0].number' 2>/dev/null || true)
+          if [ -n "$pr_number" ] && [ "$pr_number" != "null" ]; then
+            echo "Pull request from $HEAD_BRANCH to development already exists (#$pr_number)."
+          else
+            gh pr create \
+              --base development \
+              --head "$HEAD_BRANCH" \
+              --title "Merge $HEAD_BRANCH into development" \
+              --body "Automated merge request created after push to \`$HEAD_BRANCH\`."
+          fi
